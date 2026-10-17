@@ -123,3 +123,7 @@ Unit testler JWT mantığını ve kimlik doğrulama kurallarını Mockito ile te
 - [ ] Refresh token'lar
 - [ ] Gizliliğe saygılı sayfa görüntülenme istatistikleri
 - [ ] GitHub Actions'tan ev sunucusuna otomatik dağıtım
+
+## Lisans
+
+[MIT](LICENSE) © 2026 Semih Eren
