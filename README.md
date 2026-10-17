@@ -2,73 +2,73 @@
 
 [![CI](https://github.com/Semiheren05/site-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Semiheren05/site-api/actions/workflows/ci.yml)
 
-Backend API for my personal website. It handles accounts and authentication today and will serve the site's content (blog posts, portfolio items, contact form) as it grows. It runs on my own Ubuntu home server behind Nginx and Cloudflare Tunnel.
+Kişisel web sitemin backend API'si. Şu an hesapları ve kimlik doğrulamayı yönetiyor; ilerledikçe sitenin içeriklerini (blog yazıları, portföy çalışmaları, iletişim formu) da sunacak. Nginx ve Cloudflare Tunnel arkasında, kendi Ubuntu ev sunucumda çalışıyor.
 
-## Tech stack
+## Teknolojiler
 
-| Area | Choice |
+| Alan | Seçim |
 |---|---|
-| Language / framework | Java 21, Spring Boot 3.5 |
-| Security | Spring Security, stateless JWT (jjwt), BCrypt, role-based access |
-| Persistence | PostgreSQL, Spring Data JPA / Hibernate, Flyway migrations |
-| API docs | OpenAPI 3 / Swagger UI (springdoc) |
-| Testing | JUnit 5, Mockito, AssertJ, Testcontainers |
-| Delivery | Docker (multi-stage), Docker Compose, GitHub Actions |
+| Dil / framework | Java 21, Spring Boot 3.5 |
+| Güvenlik | Spring Security, durumsuz (stateless) JWT (jjwt), BCrypt, rol tabanlı yetkilendirme |
+| Veritabanı | PostgreSQL, Spring Data JPA / Hibernate, Flyway migration'ları |
+| API dokümantasyonu | OpenAPI 3 / Swagger UI (springdoc) |
+| Test | JUnit 5, Mockito, AssertJ, Testcontainers |
+| Dağıtım | Docker (multi-stage), Docker Compose, GitHub Actions |
 
-## Features
+## Özellikler
 
-- **Register / login** returning a signed JWT access token
-- **Role-based authorization** (`USER`, `ADMIN`); admin routes under `/api/admin/**`
-- **First admin bootstrap** from environment variables, idempotent
-- **Consistent errors**: every error is an [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem-detail JSON, including 401/403 from the security layer
-- **Request validation** with per-field error messages
-- **Schema owned by Flyway**; Hibernate only validates it
-- **CORS** restricted to the website's own origins
-- **Health endpoint** for uptime checks (`/actuator/health`)
+- **Kayıt / giriş**: imzalı bir JWT erişim token'ı döner
+- **Rol tabanlı yetkilendirme** (`USER`, `ADMIN`); admin uç noktaları `/api/admin/**` altında
+- **İlk admin hesabı** ortam değişkenlerinden açılışta oluşturulur, tekrar çalıştırmak sorun çıkarmaz
+- **Tutarlı hata yanıtları**: güvenlik katmanından gelen 401/403 dahil her hata [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem-detail JSON'u olarak döner
+- **İstek doğrulama**: hatalı alanlar tek tek mesajla bildirilir
+- **Veritabanı şeması Flyway'e ait**; Hibernate sadece doğrular
+- **CORS** yalnızca sitenin kendi adresleriyle sınırlı
+- **Sağlık kontrolü** uç noktası (`/actuator/health`)
 
-## Getting started
+## Çalıştırma
 
-### With Docker Compose (API + PostgreSQL)
+### Docker Compose ile (API + PostgreSQL)
 
 ```bash
 cp .env.example .env
-# set JWT_SECRET in .env, e.g. with: openssl rand -base64 48
+# .env içinde JWT_SECRET'ı ayarla, örneğin: openssl rand -base64 48
 docker compose up --build
 ```
 
-The API is then at `http://localhost:8080` and Swagger UI at `http://localhost:8080/swagger-ui.html`.
+API `http://localhost:8080` adresinde, Swagger UI `http://localhost:8080/swagger-ui.html` adresinde açılır.
 
-### Running locally from your IDE
+### IDE'den yerel olarak
 
 ```bash
-docker compose up -d db     # only the database
+docker compose up -d db     # sadece veritabanı
 mvn spring-boot:run
 ```
 
-Without `JWT_SECRET` set, a development-only secret from `application.yml` is used. Never rely on it outside local development.
+`JWT_SECRET` ayarlanmazsa `application.yml` içindeki sadece geliştirme amaçlı anahtar kullanılır. Yerel geliştirme dışında buna asla güvenme.
 
-### Configuration
+### Ayarlar
 
-| Variable | Default | Purpose |
+| Değişken | Varsayılan | Amaç |
 |---|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/siteapi` | JDBC URL |
-| `DB_USERNAME` / `DB_PASSWORD` | `siteapi` / `siteapi` | Database credentials |
-| `JWT_SECRET` | dev-only value | Base64 HMAC key, at least 32 bytes |
-| `JWT_EXPIRATION` | `1h` | Access token lifetime |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5500,http://localhost:3000` | Comma-separated browser origins |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | empty | Creates the first admin on startup if both are set |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/siteapi` | JDBC adresi |
+| `DB_USERNAME` / `DB_PASSWORD` | `siteapi` / `siteapi` | Veritabanı bilgileri |
+| `JWT_SECRET` | geliştirme değeri | Base64 HMAC anahtarı, en az 32 bayt |
+| `JWT_EXPIRATION` | `1h` | Token geçerlilik süresi |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5500,http://localhost:3000` | Virgülle ayrılmış izinli tarayıcı adresleri |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | boş | İkisi de doluysa açılışta ilk admin hesabını oluşturur |
 
 ## API
 
-| Method | Path | Access | Description |
+| Metot | Yol | Erişim | Açıklama |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | public | Create an account, returns a token (201) |
-| `POST` | `/api/auth/login` | public | Email + password → token |
-| `GET` | `/api/users/me` | authenticated | The current user |
-| `GET` | `/api/admin/users?page=0&size=20` | `ADMIN` | Paginated user list, newest first |
-| `GET` | `/actuator/health` | public | Health check |
+| `POST` | `/api/auth/register` | herkese açık | Hesap oluşturur, token döner (201) |
+| `POST` | `/api/auth/login` | herkese açık | E-posta + şifre → token |
+| `GET` | `/api/users/me` | giriş yapmış kullanıcı | Mevcut kullanıcının bilgileri |
+| `GET` | `/api/admin/users?page=0&size=20` | `ADMIN` | Sayfalı kullanıcı listesi, en yeniler önce |
+| `GET` | `/actuator/health` | herkese açık | Sağlık kontrolü |
 
-Example:
+Örnek:
 
 ```bash
 curl -X POST localhost:8080/api/auth/login \
@@ -79,7 +79,7 @@ curl -X POST localhost:8080/api/auth/login \
 curl localhost:8080/api/users/me -H 'Authorization: Bearer eyJhbGciOi...'
 ```
 
-Error example (validation):
+Hata örneği (doğrulama):
 
 ```json
 {
@@ -95,31 +95,31 @@ Error example (validation):
 }
 ```
 
-## Project structure
+## Proje yapısı
 
 ```
-src/main/java/com/bearsemih/siteapi
-├── auth/        register & login (controller, service, DTOs)
-├── user/        user entity, repository, /me and admin endpoints, admin bootstrap
-├── security/    JWT service & filter, security config, CORS, 401/403 handling
-├── common/      global exception handler and domain exceptions
-└── config/      OpenAPI and web configuration
-src/main/resources/db/migration   Flyway SQL migrations
+src/main/java/com/semih/siteapi
+├── auth/        kayıt ve giriş (controller, servis, DTO'lar)
+├── user/        kullanıcı entity'si, repository, /me ve admin uç noktaları, ilk admin oluşturma
+├── security/    JWT servisi ve filtresi, güvenlik ayarları, CORS, 401/403 yanıtları
+├── common/      merkezi hata yönetimi ve hata sınıfları
+└── config/      OpenAPI ve web ayarları
+src/main/resources/db/migration   Flyway SQL migration'ları
 ```
 
-## Tests
+## Testler
 
 ```bash
 mvn verify
 ```
 
-Unit tests cover the JWT logic and auth rules with Mockito. Integration tests start a real PostgreSQL with Testcontainers (Docker required; they are skipped when Docker is unavailable) and exercise the full HTTP flow: registration, login, validation errors, 401/403/409 responses and pagination. GitHub Actions runs the whole suite and builds the Docker image on every push.
+Unit testler JWT mantığını ve kimlik doğrulama kurallarını Mockito ile test ediyor. Entegrasyon testleri Testcontainers ile gerçek bir PostgreSQL başlatıyor (Docker gerekir; Docker yoksa atlanır) ve tüm HTTP akışını deniyor: kayıt, giriş, doğrulama hataları, 401/403/409 yanıtları ve sayfalama. GitHub Actions her push'ta tüm testleri çalıştırıp Docker imajını derliyor.
 
-## Roadmap
+## Yol haritası
 
-- [x] Authentication, roles, error handling, tests, CI
-- [ ] Blog posts & portfolio items (admin CRUD, public read API)
-- [ ] Contact form with rate limiting and e-mail notification
-- [ ] Refresh tokens
-- [ ] Privacy-friendly page view statistics
-- [ ] Automatic deployment to the home server from GitHub Actions
+- [x] Kimlik doğrulama, roller, hata yönetimi, testler, CI
+- [ ] Blog yazıları ve portföy çalışmaları (admin CRUD, herkese açık okuma API'si)
+- [ ] Hız sınırlamalı ve e-posta bildirimli iletişim formu
+- [ ] Refresh token'lar
+- [ ] Gizliliğe saygılı sayfa görüntülenme istatistikleri
+- [ ] GitHub Actions'tan ev sunucusuna otomatik dağıtım
