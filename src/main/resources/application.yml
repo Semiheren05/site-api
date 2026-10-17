@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: site-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/siteapi}
+    username: ${DB_USERNAME:siteapi}
+    password: ${DB_PASSWORD:siteapi}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # schema is owned by Flyway migrations
+  flyway:
+    enabled: true
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework   # runs behind Nginx / Cloudflare Tunnel
+
+app:
+  jwt:
+    # Dev-only default. Always set JWT_SECRET (base64, at least 32 bytes) outside local development.
+    secret: ${JWT_SECRET:dDoyebFedd49N08HXsqJqVt8ecSU5+RTPIbNDggCEOdtfk9sBPV3MrC3SD0x83Ym}
+    expiration: ${JWT_EXPIRATION:1h}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5500,http://localhost:3000}
+  admin:
+    # When both are set, an ADMIN account is created on startup if it does not exist yet.
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
