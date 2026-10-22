@@ -2,7 +2,9 @@ package com.semih.siteapi.common;
 
 import com.semih.siteapi.common.exception.EmailAlreadyUsedException;
 import com.semih.siteapi.common.exception.InvalidCredentialsException;
+import com.semih.siteapi.common.exception.InvalidSlugException;
 import com.semih.siteapi.common.exception.ResourceNotFoundException;
+import com.semih.siteapi.common.exception.SlugAlreadyUsedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -53,6 +55,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidCredentialsException.class)
     ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
         return problem(HttpStatus.UNAUTHORIZED, "Invalid credentials", ex.getMessage());
+    }
+
+    @ExceptionHandler(SlugAlreadyUsedException.class)
+    ProblemDetail handleSlugAlreadyUsed(SlugAlreadyUsedException ex) {
+        return problem(HttpStatus.CONFLICT, "Slug already in use", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidSlugException.class)
+    ProblemDetail handleInvalidSlug(InvalidSlugException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid slug", ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
