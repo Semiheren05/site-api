@@ -11,6 +11,16 @@ spring:
       ddl-auto: validate   # schema is owned by Flyway migrations
   flyway:
     enabled: true
+  # The mail server is only used when SPRING_MAIL_HOST is set (with SPRING_MAIL_USERNAME / SPRING_MAIL_PASSWORD).
+  # Without it, no mail sender is created and contact notifications are simply skipped.
+  mail:
+    port: ${SPRING_MAIL_PORT:587}
+    properties:
+      "[mail.smtp.auth]": true
+      "[mail.smtp.starttls.enable]": true
+      "[mail.smtp.connectiontimeout]": 5000
+      "[mail.smtp.timeout]": 5000
+      "[mail.smtp.writetimeout]": 5000
 
 server:
   port: ${PORT:8080}
@@ -27,8 +37,19 @@ app:
     # When both are set, an ADMIN account is created on startup if it does not exist yet.
     email: ${ADMIN_EMAIL:}
     password: ${ADMIN_PASSWORD:}
+  contact:
+    # Where new contact messages are emailed; leave empty to turn notifications off
+    notify-to: ${CONTACT_NOTIFY_TO:}
+    mail-from: ${CONTACT_MAIL_FROM:}
+    # At most this many messages per IP in the rolling window
+    max-requests: ${CONTACT_MAX_REQUESTS:3}
+    window: ${CONTACT_WINDOW:10m}
 
 management:
+  health:
+    # Do not mark the API as down just because the mail server is unreachable
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:

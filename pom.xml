@@ -43,6 +43,12 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Mail (contact form notifications) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Persistence -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
