@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Semiheren05/site-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Semiheren05/site-api/actions/workflows/ci.yml)
 
-Kişisel web sitemin backend API'si. Hesapları ve kimlik doğrulamayı yönetiyor, sitenin blog yazılarını ve portföy çalışmalarını sunuyor; sırada iletişim formu var. Nginx ve Cloudflare Tunnel arkasında, kendi Ubuntu ev sunucumda çalışıyor.
+Kişisel web sitemin backend API'si. Hesapları ve kimlik doğrulamayı yönetiyor, sitenin blog yazılarını ve portföy çalışmalarını sunuyor, iletişim formundan gelen mesajları topluyor. Nginx ve Cloudflare Tunnel arkasında, kendi Ubuntu ev sunucumda çalışıyor.
 
 ## Teknolojiler
 
@@ -13,6 +13,7 @@ Kişisel web sitemin backend API'si. Hesapları ve kimlik doğrulamayı yönetiy
 | Veritabanı | PostgreSQL, Spring Data JPA / Hibernate, Flyway migration'ları |
 | API dokümantasyonu | OpenAPI 3 / Swagger UI (springdoc) |
 | Test | JUnit 5, Mockito, AssertJ, Testcontainers |
+| E-posta | Spring Mail (SMTP), olay tabanlı ve asenkron bildirim |
 | Dağıtım | Docker (multi-stage), Docker Compose, GitHub Actions |
 
 ## Özellikler
@@ -21,6 +22,9 @@ Kişisel web sitemin backend API'si. Hesapları ve kimlik doğrulamayı yönetiy
 - **Rol tabanlı yetkilendirme** (`USER`, `ADMIN`); admin uç noktaları `/api/admin/**` altında
 - **Blog**: yazılar taslak olarak oluşur, yayınlanınca herkese açık listede görünür; taslaklar dışarıya 404 döner
 - **Portföy**: çalışmalar öne çıkarılabilir ve sıralanabilir; teknolojiler listesiyle birlikte sunulur
+- **İletişim formu**: mesajlar admin gelen kutusuna kaydedilir, istenirse e-posta ile bildirilir. Bildirim kayıt kesinleştikten sonra ayrı bir thread'de gider; mail sunucusu çökse bile ziyaretçinin isteği etkilenmez
+- **Hız sınırlama**: aynı IP'den 10 dakikada en fazla 3 mesaj (kayan pencere); aşılırsa `429` ve `Retry-After` başlığı döner
+- **Bot filtresi**: formda gizli bir "honeypot" alanı var; onu dolduran istekler kabul edilmiş gibi görünür ama kaydedilmez
 - **Otomatik slug**: Türkçe başlıklardan adres üretilir ("Spring Boot ile İlk API" → `spring-boot-ile-ilk-api`), aynı slug ikinci kez kullanılamaz (409)
 - **İlk admin hesabı** ortam değişkenlerinden açılışta oluşturulur, tekrar çalıştırmak sorun çıkarmaz
 - **Tutarlı hata yanıtları**: güvenlik katmanından gelen 401/403 dahil her hata [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem-detail JSON'u olarak döner
@@ -60,6 +64,11 @@ mvn spring-boot:run
 | `JWT_EXPIRATION` | `1h` | Token geçerlilik süresi |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5500,http://localhost:3000` | Virgülle ayrılmış izinli tarayıcı adresleri |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | boş | İkisi de doluysa açılışta ilk admin hesabını oluşturur |
+| `CONTACT_MAX_REQUESTS` / `CONTACT_WINDOW` | `3` / `10m` | IP başına izin verilen mesaj sayısı ve süre penceresi |
+| `CONTACT_NOTIFY_TO` | boş | Yeni mesaj bildiriminin gideceği adres; boşsa bildirim kapalı |
+| `CONTACT_MAIL_FROM` | boş | Bildirimin gönderen adresi |
+| `SPRING_MAIL_HOST` / `SPRING_MAIL_PORT` | boş / `587` | SMTP sunucusu; host boşsa e-posta hiç gönderilmez |
+| `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD` | boş | SMTP giriş bilgileri (Gmail için uygulama şifresi) |
 
 ## API
 
@@ -76,6 +85,10 @@ mvn spring-boot:run
 | `GET` `POST` | `/api/admin/posts` | `ADMIN` | Taslaklar dahil tüm yazılar / yeni taslak (201) |
 | `GET` `PUT` `DELETE` | `/api/admin/posts/{id}` | `ADMIN` | Yazıyı getir, güncelle, sil (204) |
 | `POST` | `/api/admin/posts/{id}/publish` · `/unpublish` | `ADMIN` | Yayınla / taslağa geri al |
+| `POST` | `/api/contact` | herkese açık | İletişim formu mesajı (202), IP başına hız sınırlı |
+| `GET` | `/api/admin/contact-messages?page=0&size=20` | `ADMIN` | Gelen kutusu, en yeniler önce |
+| `POST` | `/api/admin/contact-messages/{id}/read` | `ADMIN` | Mesajı okundu işaretle |
+| `DELETE` | `/api/admin/contact-messages/{id}` | `ADMIN` | Mesajı sil (204) |
 | `GET` `POST` | `/api/admin/projects` | `ADMIN` | Tüm çalışmalar / yeni çalışma (201) |
 | `GET` `PUT` `DELETE` | `/api/admin/projects/{id}` | `ADMIN` | Çalışmayı getir, güncelle, sil (204) |
 | `GET` | `/actuator/health` | herkese açık | Sağlık kontrolü |
@@ -103,6 +116,16 @@ curl -X POST localhost:8080/api/admin/posts/1/publish -H 'Authorization: Bearer 
 curl localhost:8080/api/posts/spring-boot-ile-ilk-api   # artık herkese açık
 ```
 
+İletişim formu (4. mesaj 10 dakika içinde gelirse):
+
+```bash
+curl -i -X POST localhost:8080/api/contact -H 'Content-Type: application/json' \
+  -d '{"name":"Ayşe","email":"ayse@example.com","message":"Merhaba Semih, birlikte çalışalım mı?"}'
+# HTTP/1.1 429
+# Retry-After: 412
+# {"title":"Too many requests","status":429,...}
+```
+
 Hata örneği (doğrulama):
 
 ```json
@@ -127,9 +150,10 @@ src/main/java/com/semih/siteapi
 ├── user/        kullanıcı entity'si, repository, /me ve admin uç noktaları, ilk admin oluşturma
 ├── post/        blog yazıları: entity, taslak/yayın akışı, herkese açık ve admin uç noktaları
 ├── project/     portföy çalışmaları: entity, sıralama, herkese açık ve admin uç noktaları
+├── contact/     iletişim formu, admin gelen kutusu, e-posta bildirimi
 ├── security/    JWT servisi ve filtresi, güvenlik ayarları, CORS, 401/403 yanıtları
-├── common/      merkezi hata yönetimi, hata sınıfları, slug üretimi, liste ↔ sütun dönüştürücü
-└── config/      OpenAPI ve web ayarları
+├── common/      merkezi hata yönetimi, hata sınıfları, slug üretimi, liste ↔ sütun dönüştürücü, hız sınırlayıcı
+└── config/      OpenAPI, web ve asenkron çalışma ayarları
 src/main/resources/db/migration   Flyway SQL migration'ları
 ```
 
@@ -139,13 +163,13 @@ src/main/resources/db/migration   Flyway SQL migration'ları
 mvn verify
 ```
 
-Unit testler JWT mantığını ve kimlik doğrulama kurallarını Mockito ile test ediyor. Entegrasyon testleri Testcontainers ile gerçek bir PostgreSQL başlatıyor (Docker gerekir; Docker yoksa atlanır) ve tüm HTTP akışını deniyor: kayıt, giriş, doğrulama hataları, 401/403/409 yanıtları, sayfalama, blog yazısının taslaktan yayına geçişi ve portföy sıralaması. Tüm entegrasyon testleri tek bir PostgreSQL konteynerini paylaşıyor. GitHub Actions her push'ta tüm testleri çalıştırıp Docker imajını derliyor.
+Unit testler JWT mantığını, kimlik doğrulama kurallarını, hız sınırlayıcıyı ve e-posta bildirimini (Mockito ile) test ediyor. Entegrasyon testleri Testcontainers ile gerçek bir PostgreSQL başlatıyor (Docker gerekir; Docker yoksa atlanır) ve tüm HTTP akışını deniyor: kayıt, giriş, doğrulama hataları, 401/403/409 yanıtları, sayfalama, blog yazısının taslaktan yayına geçişi, portföy sıralaması ve iletişim formunun hız sınırı (429). Tüm entegrasyon testleri tek bir PostgreSQL konteynerini paylaşıyor. GitHub Actions her push'ta tüm testleri çalıştırıp Docker imajını derliyor.
 
 ## Yol haritası
 
 - [x] Kimlik doğrulama, roller, hata yönetimi, testler, CI
 - [x] Blog yazıları ve portföy çalışmaları (admin CRUD, herkese açık okuma API'si)
-- [ ] Hız sınırlamalı ve e-posta bildirimli iletişim formu
+- [x] Hız sınırlamalı ve e-posta bildirimli iletişim formu
 - [ ] Refresh token'lar
 - [ ] Gizliliğe saygılı sayfa görüntülenme istatistikleri
 - [ ] GitHub Actions'tan ev sunucusuna otomatik dağıtım
