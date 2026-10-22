@@ -3,6 +3,7 @@ package com.semih.siteapi.common;
 import com.semih.siteapi.common.exception.EmailAlreadyUsedException;
 import com.semih.siteapi.common.exception.InvalidCredentialsException;
 import com.semih.siteapi.common.exception.InvalidSlugException;
+import com.semih.siteapi.common.exception.RateLimitExceededException;
 import com.semih.siteapi.common.exception.ResourceNotFoundException;
 import com.semih.siteapi.common.exception.SlugAlreadyUsedException;
 import org.slf4j.Logger;
@@ -65,6 +66,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidSlugException.class)
     ProblemDetail handleInvalidSlug(InvalidSlugException ex) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid slug", ex.getMessage());
+    }
+
+    /** 429 with a Retry-After header (seconds), so clients know when to try again. */
+    @ExceptionHandler(RateLimitExceededException.class)
+    ResponseEntity<ProblemDetail> handleRateLimit(RateLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(problem(HttpStatus.TOO_MANY_REQUESTS, "Too many requests", ex.getMessage()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
