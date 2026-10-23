@@ -10,6 +10,7 @@ import com.semih.siteapi.common.exception.RateLimitExceededException;
 import com.semih.siteapi.common.exception.ResourceNotFoundException;
 import com.semih.siteapi.common.exception.SlugAlreadyUsedException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -119,10 +120,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Not found", ex.getMessage());
     }
 
-    /** E.g. two concurrent registrations with the same email: the unique constraint wins. */
+    /**
+     * E.g. two concurrent registrations with the same email: the unique constraint wins.
+     * Only the constraint's name is logged: PostgreSQL's message repeats the rejected value
+     * ("Key (email)=(...) already exists"), and personal data stays out of the logs.
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
-        log.warn("Constraint violation: {}", ex.getMostSpecificCause().getMessage());
+        log.warn("Constraint violation constraint={}", constraintName(ex));
         return problem(HttpStatus.CONFLICT, "Conflict", "The request conflicts with existing data");
     }
 
@@ -131,6 +136,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unexpected error method={} path={}", request.getMethod(), request.getRequestURI(), ex);
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", "Something went wrong");
+    }
+
+    private static String constraintName(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation && violation.getConstraintName() != null) {
+                return violation.getConstraintName();
+            }
+        }
+        return "unknown";
     }
 
     private ProblemDetail problem(HttpStatus status, String title, String detail) {

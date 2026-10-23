@@ -47,7 +47,9 @@ public class ContactNotifier {
         try {
             sender.send(buildMail(event));
         } catch (MailException e) {
-            log.warn("Could not send the notification for contact message {}: {}", event.id(), e.getMessage());
+            // The SMTP error text can contain email addresses, so only the type goes to WARN
+            log.warn("Contact notification failed messageId={} error={}", event.id(), e.getClass().getSimpleName());
+            log.debug("Contact notification failure details messageId={}", event.id(), e);
         }
     }
 
