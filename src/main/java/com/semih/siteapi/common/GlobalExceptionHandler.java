@@ -2,6 +2,7 @@ package com.semih.siteapi.common;
 
 import com.semih.siteapi.common.exception.EmailAlreadyUsedException;
 import com.semih.siteapi.common.exception.InvalidCredentialsException;
+import com.semih.siteapi.common.exception.InvalidDateRangeException;
 import com.semih.siteapi.common.exception.InvalidRefreshTokenException;
 import com.semih.siteapi.common.exception.InvalidSlugException;
 import com.semih.siteapi.common.exception.InvalidTagException;
@@ -93,6 +94,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidTagException.class)
     ProblemDetail handleInvalidTag(InvalidTagException ex) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid tag", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidDateRangeException.class)
+    ProblemDetail handleInvalidDateRange(InvalidDateRangeException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid date range", ex.getMessage());
     }
 
     @ExceptionHandler(InvalidSlugException.class)

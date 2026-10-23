@@ -41,6 +41,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/projects", "/api/projects/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tags", "/api/tags/**").permitAll()
+                        // Readers of the blog count views without logging in (no cookies, see PageViewService)
+                        .requestMatchers(HttpMethod.POST, "/api/posts/*/views").permitAll()
                         // Contact form: anyone can send (rate limited in ContactService)
                         .requestMatchers(HttpMethod.POST, "/api/contact").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

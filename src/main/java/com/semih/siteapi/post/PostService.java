@@ -75,7 +75,14 @@ public class PostService {
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
     }
 
-    // --- Admin ---
+    /** For the stats package: the id of a published post, 404 for drafts and unknown slugs. */
+    @Transactional(readOnly = true)
+    public Long findPublishedId(String slug) {
+        return postRepository.findPublishedId(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
+    }
+
+        // --- Admin ---
 
     @Transactional(readOnly = true)
     public Page<PostResponse> listAll(Pageable pageable) {

@@ -46,6 +46,9 @@ app:
     # At most this many messages per IP in the rolling window
     max-requests: ${CONTACT_MAX_REQUESTS:3}
     window: ${CONTACT_WINDOW:10m}
+  stats:
+    # A "day" of the view statistics starts at midnight in this time zone
+    time-zone: ${STATS_TIME_ZONE:Europe/Istanbul}
 
 management:
   health:
