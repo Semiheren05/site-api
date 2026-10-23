@@ -7,14 +7,23 @@ import com.semih.siteapi.common.exception.SlugAlreadyUsedException;
 import com.semih.siteapi.post.dto.PostRequest;
 import com.semih.siteapi.post.dto.PostResponse;
 import com.semih.siteapi.post.dto.PostSummaryResponse;
+import com.semih.siteapi.tag.Tag;
+import com.semih.siteapi.tag.TagService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+import static com.semih.siteapi.common.Texts.trimToNull;
 
 @Service
 public class PostService {
@@ -22,20 +31,40 @@ public class PostService {
     private static final Logger log = LoggerFactory.getLogger(PostService.class);
 
     private final PostRepository postRepository;
+    private final TagService tagService;
     private final PostMapper mapper;
     private final Clock clock;
 
-    public PostService(PostRepository postRepository, PostMapper mapper, Clock clock) {
+    public PostService(PostRepository postRepository, TagService tagService, PostMapper mapper, Clock clock) {
         this.postRepository = postRepository;
+        this.tagService = tagService;
         this.mapper = mapper;
         this.clock = clock;
     }
 
     // --- Public ---
 
+    /**
+     * Published posts, optionally only those with a tag and/or containing a text.
+     * Each page costs a fixed number of queries however many posts it has: the posts, the
+     * count, and one batch for all their tags ({@code @BatchSize} on {@code Post#tags}).
+     *
+     * @param tagSlug e.g. "spring-boot"; null for all tags
+     * @param query   searched in title, summary and content; null for no search
+     */
     @Transactional(readOnly = true)
-    public Page<PostSummaryResponse> listPublished(Pageable pageable) {
-        return postRepository.findByStatus(PostStatus.PUBLISHED, pageable).map(mapper::toSummary);
+    public Page<PostSummaryResponse> listPublished(String tagSlug, String query, Pageable pageable) {
+        List<Specification<Post>> filters = new ArrayList<>();
+        filters.add(PostSpecifications.isPublished());
+        String tag = trimToNull(tagSlug);
+        if (tag != null) {
+            filters.add(PostSpecifications.hasTag(tag.toLowerCase(Locale.ROOT)));
+        }
+        String text = trimToNull(query);
+        if (text != null) {
+            filters.add(PostSpecifications.matches(text));
+        }
+        return postRepository.findAll(Specification.allOf(filters), pageable).map(mapper::toSummary);
     }
 
     /** Drafts answer 404 too, so the public API does not reveal that they exist. */
@@ -64,7 +93,8 @@ public class PostService {
         if (postRepository.existsBySlug(slug)) {
             throw new SlugAlreadyUsedException(slug);
         }
-        Post post = postRepository.save(mapper.toEntity(request, slug));
+        Set<Tag> tags = tagService.resolve(request.tags());
+        Post post = postRepository.save(mapper.toEntity(request, slug, tags));
         log.info("Post created postId={} slug={}", post.getId(), slug);
         return mapper.toResponse(post);
     }
@@ -76,7 +106,7 @@ public class PostService {
         if (postRepository.existsBySlugAndIdNot(slug, id)) {
             throw new SlugAlreadyUsedException(slug);
         }
-        mapper.updateEntity(post, request, slug);
+        mapper.updateEntity(post, request, slug, tagService.resolve(request.tags()));
         // Flush so @PreUpdate runs now and the response shows the new updatedAt
         postRepository.flush();
         return mapper.toResponse(post);

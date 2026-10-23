@@ -5,6 +5,10 @@ import com.semih.siteapi.common.exception.ResourceNotFoundException;
 import com.semih.siteapi.common.exception.SlugAlreadyUsedException;
 import com.semih.siteapi.post.dto.PostRequest;
 import com.semih.siteapi.post.dto.PostResponse;
+import com.semih.siteapi.tag.Tag;
+import com.semih.siteapi.tag.TagMapper;
+import com.semih.siteapi.tag.TagService;
+import com.semih.siteapi.tag.dto.TagSummary;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,7 +19,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,12 +37,15 @@ class PostServiceTest {
 
     @Mock
     private PostRepository postRepository;
+    @Mock
+    private TagService tagService;
 
     private PostService postService;
 
     @BeforeEach
     void setUp() {
-        postService = new PostService(postRepository, new PostMapper(), Clock.fixed(NOW, ZoneOffset.UTC));
+        postService = new PostService(postRepository, tagService, new PostMapper(new TagMapper()),
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -45,7 +54,7 @@ class PostServiceTest {
         when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PostResponse response = postService.create(
-                new PostRequest("  Spring Boot ile İlk API ", null, "  ", "İçerik"));
+                new PostRequest("  Spring Boot ile İlk API ", null, "  ", "İçerik", null));
 
         ArgumentCaptor<Post> saved = ArgumentCaptor.forClass(Post.class);
         verify(postRepository).save(saved.capture());
@@ -57,11 +66,27 @@ class PostServiceTest {
     }
 
     @Test
+    void createAttachesTheTagsTheTagServiceResolved() {
+        Tag springBoot = new Tag("Spring Boot", "spring-boot");
+        Tag jpa = new Tag("JPA", "jpa");
+        when(tagService.resolve(List.of("Spring Boot", "JPA"))).thenReturn(Set.of(springBoot, jpa));
+        when(postRepository.existsBySlug("etiketli")).thenReturn(false);
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PostResponse response = postService.create(
+                new PostRequest("Etiketli", null, null, "İçerik", List.of("Spring Boot", "JPA")));
+
+        // Sorted by slug, so the order is stable
+        assertThat(response.tags()).containsExactly(
+                new TagSummary("JPA", "jpa"), new TagSummary("Spring Boot", "spring-boot"));
+    }
+
+    @Test
     void createUsesTheGivenSlug() {
         when(postRepository.existsBySlug("ozel-adres")).thenReturn(false);
         when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PostResponse response = postService.create(new PostRequest("Başlık", "ozel-adres", null, "İçerik"));
+        PostResponse response = postService.create(new PostRequest("Başlık", "ozel-adres", null, "İçerik", null));
 
         assertThat(response.slug()).isEqualTo("ozel-adres");
     }
@@ -70,7 +95,7 @@ class PostServiceTest {
     void createRejectsATakenSlug() {
         when(postRepository.existsBySlug("merhaba")).thenReturn(true);
 
-        assertThatThrownBy(() -> postService.create(new PostRequest("Merhaba", null, null, "İçerik")))
+        assertThatThrownBy(() -> postService.create(new PostRequest("Merhaba", null, null, "İçerik", null)))
                 .isInstanceOf(SlugAlreadyUsedException.class);
 
         verify(postRepository, never()).save(any());
@@ -78,7 +103,7 @@ class PostServiceTest {
 
     @Test
     void createRejectsATitleWithoutLettersWhenNoSlugIsGiven() {
-        assertThatThrownBy(() -> postService.create(new PostRequest("???", null, null, "İçerik")))
+        assertThatThrownBy(() -> postService.create(new PostRequest("???", null, null, "İçerik", null)))
                 .isInstanceOf(InvalidSlugException.class);
     }
 
@@ -87,7 +112,7 @@ class PostServiceTest {
         when(postRepository.findById(1L)).thenReturn(Optional.of(new Post("eski", "Eski", null, "İçerik")));
         when(postRepository.existsBySlugAndIdNot("dolu", 1L)).thenReturn(true);
 
-        assertThatThrownBy(() -> postService.update(1L, new PostRequest("Yeni", "dolu", null, "İçerik")))
+        assertThatThrownBy(() -> postService.update(1L, new PostRequest("Yeni", "dolu", null, "İçerik", null)))
                 .isInstanceOf(SlugAlreadyUsedException.class);
     }
 

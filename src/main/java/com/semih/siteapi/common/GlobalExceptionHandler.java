@@ -3,6 +3,7 @@ package com.semih.siteapi.common;
 import com.semih.siteapi.common.exception.EmailAlreadyUsedException;
 import com.semih.siteapi.common.exception.InvalidCredentialsException;
 import com.semih.siteapi.common.exception.InvalidSlugException;
+import com.semih.siteapi.common.exception.InvalidTagException;
 import com.semih.siteapi.common.exception.RateLimitExceededException;
 import com.semih.siteapi.common.exception.ResourceNotFoundException;
 import com.semih.siteapi.common.exception.SlugAlreadyUsedException;
@@ -81,6 +82,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(SlugAlreadyUsedException.class)
     ProblemDetail handleSlugAlreadyUsed(SlugAlreadyUsedException ex) {
         return problem(HttpStatus.CONFLICT, "Slug already in use", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidTagException.class)
+    ProblemDetail handleInvalidTag(InvalidTagException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid tag", ex.getMessage());
     }
 
     @ExceptionHandler(InvalidSlugException.class)

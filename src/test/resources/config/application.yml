@@ -1,0 +1,12 @@
+# Test-only settings, loaded on top of src/main/resources/application.yml.
+# Every test class shares them, so they all reuse one Spring context.
+spring:
+  jpa:
+    properties:
+      # Lets tests count the SQL statements a request runs (N+1 checks)
+      hibernate.generate_statistics: true
+
+logging:
+  level:
+    # generate_statistics would otherwise log a metrics block after every session
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: warn
