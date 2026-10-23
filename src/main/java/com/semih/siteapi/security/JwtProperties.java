@@ -8,10 +8,12 @@ import org.springframework.validation.annotation.Validated;
 import java.time.Duration;
 
 /**
- * @param secret     base64-encoded HMAC key, at least 32 bytes after decoding
- * @param expiration how long an access token stays valid
+ * @param secret            base64-encoded HMAC key, at least 32 bytes after decoding
+ * @param expiration        how long an access token stays valid; short, because it cannot be revoked
+ * @param refreshExpiration how long a refresh token stays valid; it can be revoked (logout)
  */
 @Validated
 @ConfigurationProperties(prefix = "app.jwt")
-public record JwtProperties(@NotBlank String secret, @NotNull Duration expiration) {
+public record JwtProperties(@NotBlank String secret, @NotNull Duration expiration,
+                            @NotNull Duration refreshExpiration) {
 }

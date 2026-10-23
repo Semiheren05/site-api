@@ -53,7 +53,7 @@ class JwtServiceTest {
 
     private static JwtService serviceAt(Instant instant, String secret) {
         return new JwtService(
-                new JwtProperties(secret, Duration.ofHours(1)),
+                new JwtProperties(secret, Duration.ofHours(1), Duration.ofDays(30)),
                 Clock.fixed(instant, ZoneOffset.UTC));
     }
 

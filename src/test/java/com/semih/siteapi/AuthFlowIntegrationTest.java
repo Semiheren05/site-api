@@ -1,5 +1,6 @@
 package com.semih.siteapi;
 
+import com.semih.siteapi.auth.RefreshTokenRepository;
 import com.semih.siteapi.common.RequestIdFilter;
 import com.semih.siteapi.user.Role;
 import com.semih.siteapi.user.User;
@@ -15,8 +16,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -39,7 +42,10 @@ class AuthFlowIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
 
+    /** Deleting the users also deletes their refresh tokens (ON DELETE CASCADE). */
     @BeforeEach
     void cleanDatabase() {
         userRepository.deleteAll();
@@ -65,6 +71,52 @@ class AuthFlowIntegrationTest {
                 .andExpect(jsonPath("$.displayName").value("Semih"))
                 .andExpect(jsonPath("$.role").value("USER"))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());
+    }
+
+    @Test
+    void refreshTokensWorkOnceAndAReusedOneEndsTheLogin() throws Exception {
+        saveUser("semih@example.com", "password123", Role.USER);
+        String first = JsonPath.read(loginBody("semih@example.com", "password123"), "$.refreshToken");
+
+        String refreshed = refresh(first)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshExpiresIn").value(30 * 24 * 3600))
+                .andReturn().getResponse().getContentAsString();
+        String second = JsonPath.read(refreshed, "$.refreshToken");
+        String accessToken = JsonPath.read(refreshed, "$.accessToken");
+        mockMvc.perform(get("/api/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+
+        // The first token was already used: whoever sends it again may have stolen it
+        refresh(first)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Invalid refresh token"));
+        // ...so the whole login is revoked, the newest token too. This also proves the revocation
+        // was committed even though the request ended with an exception (noRollbackFor).
+        refresh(second).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void logoutEndsTheLogin() throws Exception {
+        saveUser("semih@example.com", "password123", Role.USER);
+        String token = JsonPath.read(loginBody("semih@example.com", "password123"), "$.refreshToken");
+
+        logout(token).andExpect(status().isNoContent());
+
+        refresh(token).andExpect(status().isUnauthorized());
+        // Logging out twice, or with a token that never existed, is not an error
+        logout(token).andExpect(status().isNoContent());
+        logout("never-issued").andExpect(status().isNoContent());
+    }
+
+    @Test
+    void storedRefreshTokensAreHashed() throws Exception {
+        saveUser("semih@example.com", "password123", Role.USER);
+        String token = JsonPath.read(loginBody("semih@example.com", "password123"), "$.refreshToken");
+
+        assertThat(refreshTokenRepository.findByTokenHash(token)).isEmpty();
+        assertThat(refreshTokenRepository.count()).isEqualTo(1);
     }
 
     @Test
@@ -156,15 +208,31 @@ class AuthFlowIntegrationTest {
     }
 
     private String login(String email, String password) throws Exception {
-        String response = mockMvc.perform(post("/api/auth/login")
+        return JsonPath.read(loginBody(email, password), "$.accessToken");
+    }
+
+    private String loginBody(String email, String password) throws Exception {
+        return mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "%s", "password": "%s"}
                                 """.formatted(email, password)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        return JsonPath.read(response, "$.accessToken");
+    }
+
+    private ResultActions refresh(String refreshToken) throws Exception {
+        return mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\": \"%s\"}".formatted(refreshToken)));
+    }
+
+    private ResultActions logout(String refreshToken) throws Exception {
+        return mockMvc.perform(post("/api/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\": \"%s\"}".formatted(refreshToken)));
     }
 }

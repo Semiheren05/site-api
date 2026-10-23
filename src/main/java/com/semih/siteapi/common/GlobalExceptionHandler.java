@@ -2,6 +2,7 @@ package com.semih.siteapi.common;
 
 import com.semih.siteapi.common.exception.EmailAlreadyUsedException;
 import com.semih.siteapi.common.exception.InvalidCredentialsException;
+import com.semih.siteapi.common.exception.InvalidRefreshTokenException;
 import com.semih.siteapi.common.exception.InvalidSlugException;
 import com.semih.siteapi.common.exception.InvalidTagException;
 import com.semih.siteapi.common.exception.RateLimitExceededException;
@@ -77,6 +78,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidCredentialsException.class)
     ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
         return problem(HttpStatus.UNAUTHORIZED, "Invalid credentials", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    ProblemDetail handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        return problem(HttpStatus.UNAUTHORIZED, "Invalid refresh token", ex.getMessage());
     }
 
     @ExceptionHandler(SlugAlreadyUsedException.class)

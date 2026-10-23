@@ -2,9 +2,11 @@ package com.semih.siteapi.auth;
 
 import com.semih.siteapi.auth.dto.AuthResponse;
 import com.semih.siteapi.auth.dto.LoginRequest;
+import com.semih.siteapi.auth.dto.RefreshRequest;
 import com.semih.siteapi.auth.dto.RegisterRequest;
 import com.semih.siteapi.common.exception.EmailAlreadyUsedException;
 import com.semih.siteapi.common.exception.InvalidCredentialsException;
+import com.semih.siteapi.common.exception.InvalidRefreshTokenException;
 import com.semih.siteapi.security.JwtService;
 import com.semih.siteapi.user.Role;
 import com.semih.siteapi.user.User;
@@ -17,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +36,8 @@ class AuthServiceTest {
 
     @Mock
     private UserService userService;
+    @Mock
+    private RefreshTokenService refreshTokenService;
     @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
@@ -56,16 +61,43 @@ class AuthServiceTest {
     void registerStoresNormalizedEmailAndHashedPassword() {
         when(userService.isEmailTaken("semih@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("hashed");
-        when(userService.createAccount("semih@example.com", "hashed", "Semih", Role.USER))
-                .thenReturn(new User("semih@example.com", "hashed", "Semih", Role.USER));
+        User created = new User("semih@example.com", "hashed", "Semih", Role.USER);
+        when(userService.createAccount("semih@example.com", "hashed", "Semih", Role.USER)).thenReturn(created);
+        when(refreshTokenService.issue(created)).thenReturn(new IssuedRefreshToken("refresh", Instant.EPOCH));
+        when(refreshTokenService.getLifetime()).thenReturn(Duration.ofDays(30));
         when(jwtService.generateToken("semih@example.com", Role.USER)).thenReturn("token");
-        when(jwtService.getExpiration()).thenReturn(Duration.ofHours(1));
+        when(jwtService.getExpiration()).thenReturn(Duration.ofMinutes(15));
 
         AuthResponse response = authService.register(
                 new RegisterRequest(" Semih@Example.com ", "password123", " Semih "));
 
         verify(userService).createAccount("semih@example.com", "hashed", "Semih", Role.USER);
-        assertThat(response).isEqualTo(new AuthResponse("token", "Bearer", 3600));
+        assertThat(response).isEqualTo(new AuthResponse("token", "Bearer", 900, "refresh", 2_592_000));
+    }
+
+    @Test
+    void refreshSignsANewAccessTokenForTheTokensOwner() {
+        User user = new User("semih@example.com", "hashed", "Semih", Role.ADMIN);
+        when(refreshTokenService.rotate("old-refresh")).thenReturn(
+                new RefreshTokenService.Rotation(user, new IssuedRefreshToken("new-refresh", Instant.EPOCH)));
+        when(refreshTokenService.getLifetime()).thenReturn(Duration.ofDays(30));
+        when(jwtService.generateToken("semih@example.com", Role.ADMIN)).thenReturn("new-access");
+        when(jwtService.getExpiration()).thenReturn(Duration.ofMinutes(15));
+
+        AuthResponse response = authService.refresh(new RefreshRequest("old-refresh"));
+
+        assertThat(response.accessToken()).isEqualTo("new-access");
+        assertThat(response.refreshToken()).isEqualTo("new-refresh");
+    }
+
+    @Test
+    void anInvalidRefreshTokenGivesNoAccessToken() {
+        when(refreshTokenService.rotate("stolen")).thenThrow(new InvalidRefreshTokenException());
+
+        assertThatThrownBy(() -> authService.refresh(new RefreshRequest("stolen")))
+                .isInstanceOf(InvalidRefreshTokenException.class);
+
+        verifyNoInteractions(jwtService);
     }
 
     @Test
