@@ -20,14 +20,14 @@ public class AdminInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(AdminInitializer.class);
 
     private final AdminProperties adminProperties;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final PasswordEncoder passwordEncoder;
 
     public AdminInitializer(AdminProperties adminProperties,
-                            UserRepository userRepository,
+                            UserService userService,
                             PasswordEncoder passwordEncoder) {
         this.adminProperties = adminProperties;
-        this.userRepository = userRepository;
+        this.userService = userService;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -38,10 +38,12 @@ public class AdminInitializer implements ApplicationRunner {
             return;
         }
         String email = adminProperties.email().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmail(email)) {
+        if (userService.isEmailTaken(email)) {
             return;
         }
-        userRepository.save(new User(email, passwordEncoder.encode(adminProperties.password()), "Admin", Role.ADMIN));
-        log.info("Created admin account {}", email);
+        User admin = userService.createAccount(
+                email, passwordEncoder.encode(adminProperties.password()), "Admin", Role.ADMIN);
+        // Only the id: email addresses stay out of the logs
+        log.info("Created admin account userId={}", admin.getId());
     }
 }

@@ -3,6 +3,7 @@ package com.semih.siteapi.project;
 import com.semih.siteapi.project.dto.ProjectResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,13 +25,13 @@ public class ProjectController {
 
     @GetMapping
     @Operation(summary = "Published projects, featured first, then by display order")
-    public List<ProjectResponse> list() {
-        return projectService.listPublished();
+    public ResponseEntity<List<ProjectResponse>> list() {
+        return ResponseEntity.ok(projectService.listPublished());
     }
 
     @GetMapping("/{slug}")
     @Operation(summary = "A published project")
-    public ProjectResponse get(@PathVariable String slug) {
-        return projectService.getPublished(slug);
+    public ResponseEntity<ProjectResponse> get(@PathVariable String slug) {
+        return ResponseEntity.ok(projectService.getPublished(slug));
     }
 }

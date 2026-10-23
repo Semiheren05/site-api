@@ -7,6 +7,8 @@ import com.semih.siteapi.common.exception.SlugAlreadyUsedException;
 import com.semih.siteapi.post.dto.PostRequest;
 import com.semih.siteapi.post.dto.PostResponse;
 import com.semih.siteapi.post.dto.PostSummaryResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,11 +19,15 @@ import java.time.Clock;
 @Service
 public class PostService {
 
+    private static final Logger log = LoggerFactory.getLogger(PostService.class);
+
     private final PostRepository postRepository;
+    private final PostMapper mapper;
     private final Clock clock;
 
-    public PostService(PostRepository postRepository, Clock clock) {
+    public PostService(PostRepository postRepository, PostMapper mapper, Clock clock) {
         this.postRepository = postRepository;
+        this.mapper = mapper;
         this.clock = clock;
     }
 
@@ -29,14 +35,14 @@ public class PostService {
 
     @Transactional(readOnly = true)
     public Page<PostSummaryResponse> listPublished(Pageable pageable) {
-        return postRepository.findByStatus(PostStatus.PUBLISHED, pageable).map(PostSummaryResponse::from);
+        return postRepository.findByStatus(PostStatus.PUBLISHED, pageable).map(mapper::toSummary);
     }
 
     /** Drafts answer 404 too, so the public API does not reveal that they exist. */
     @Transactional(readOnly = true)
     public PostResponse getPublished(String slug) {
         return postRepository.findBySlugAndStatus(slug, PostStatus.PUBLISHED)
-                .map(PostResponse::from)
+                .map(mapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
     }
 
@@ -44,12 +50,12 @@ public class PostService {
 
     @Transactional(readOnly = true)
     public Page<PostResponse> listAll(Pageable pageable) {
-        return postRepository.findAll(pageable).map(PostResponse::from);
+        return postRepository.findAll(pageable).map(mapper::toResponse);
     }
 
     @Transactional(readOnly = true)
     public PostResponse get(Long id) {
-        return PostResponse.from(find(id));
+        return mapper.toResponse(find(id));
     }
 
     @Transactional
@@ -58,9 +64,9 @@ public class PostService {
         if (postRepository.existsBySlug(slug)) {
             throw new SlugAlreadyUsedException(slug);
         }
-        Post post = postRepository.save(new Post(slug, request.title().trim(), trimToNull(request.summary()),
-                request.content()));
-        return PostResponse.from(post);
+        Post post = postRepository.save(mapper.toEntity(request, slug));
+        log.info("Post created postId={} slug={}", post.getId(), slug);
+        return mapper.toResponse(post);
     }
 
     @Transactional
@@ -70,10 +76,10 @@ public class PostService {
         if (postRepository.existsBySlugAndIdNot(slug, id)) {
             throw new SlugAlreadyUsedException(slug);
         }
-        post.update(slug, request.title().trim(), trimToNull(request.summary()), request.content());
+        mapper.updateEntity(post, request, slug);
         // Flush so @PreUpdate runs now and the response shows the new updatedAt
         postRepository.flush();
-        return PostResponse.from(post);
+        return mapper.toResponse(post);
     }
 
     @Transactional
@@ -81,7 +87,8 @@ public class PostService {
         Post post = find(id);
         post.publish(clock.instant());
         postRepository.flush();
-        return PostResponse.from(post);
+        log.info("Post published postId={}", id);
+        return mapper.toResponse(post);
     }
 
     @Transactional
@@ -89,12 +96,14 @@ public class PostService {
         Post post = find(id);
         post.unpublish();
         postRepository.flush();
-        return PostResponse.from(post);
+        log.info("Post moved back to drafts postId={}", id);
+        return mapper.toResponse(post);
     }
 
     @Transactional
     public void delete(Long id) {
         postRepository.delete(find(id));
+        log.info("Post deleted postId={}", id);
     }
 
     private Post find(Long id) {
@@ -102,6 +111,7 @@ public class PostService {
                 .orElseThrow(() -> new ResourceNotFoundException("Post " + id + " not found"));
     }
 
+    /** Business rule: an explicit slug wins, otherwise it is built from the title. */
     private static String resolveSlug(PostRequest request) {
         String slug = request.slug() == null || request.slug().isBlank()
                 ? Slugs.from(request.title())
@@ -110,9 +120,5 @@ public class PostService {
             throw new InvalidSlugException();
         }
         return slug;
-    }
-
-    private static String trimToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }

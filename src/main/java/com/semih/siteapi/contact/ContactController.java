@@ -5,11 +5,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,9 +28,9 @@ public class ContactController {
      * reads the X-Forwarded-For header.
      */
     @PostMapping
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    @Operation(summary = "Send a message (rate limited per IP; answers 429 with Retry-After when exceeded)")
-    public void submit(@Valid @RequestBody ContactRequest request, HttpServletRequest httpRequest) {
+    @Operation(summary = "Send a message (202; rate limited per IP, answers 429 with Retry-After when exceeded)")
+    public ResponseEntity<Void> submit(@Valid @RequestBody ContactRequest request, HttpServletRequest httpRequest) {
         contactService.submit(request, httpRequest.getRemoteAddr());
+        return ResponseEntity.accepted().build();
     }
 }

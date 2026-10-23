@@ -21,14 +21,17 @@ public class ContactService {
     private static final Logger log = LoggerFactory.getLogger(ContactService.class);
 
     private final ContactMessageRepository repository;
+    private final ContactMessageMapper mapper;
     private final ApplicationEventPublisher events;
     private final SlidingWindowRateLimiter rateLimiter;
 
     public ContactService(ContactMessageRepository repository,
+                          ContactMessageMapper mapper,
                           ApplicationEventPublisher events,
                           ContactProperties properties,
                           Clock clock) {
         this.repository = repository;
+        this.mapper = mapper;
         this.events = events;
         this.rateLimiter = new SlidingWindowRateLimiter(properties.maxRequests(), properties.window(), clock);
     }
@@ -42,17 +45,16 @@ public class ContactService {
     @Transactional
     public void submit(ContactRequest request, String clientIp) {
         rateLimiter.tryAcquire(clientIp).ifPresent(retryAfter -> {
+            // The IP is personal data, so it is not logged; the request id links the line to the request
+            log.warn("Contact form rate limit exceeded retryAfterSeconds={}", retryAfter.toSeconds());
             throw new RateLimitExceededException(retryAfter);
         });
         if (request.looksLikeBot()) {
-            log.info("Dropped a contact message that filled the honeypot field");
+            log.warn("Dropped a contact message that filled the honeypot field");
             return;
         }
-        ContactMessage saved = repository.save(new ContactMessage(
-                request.name().trim(),
-                request.email().trim(),
-                trimToNull(request.subject()),
-                request.message().trim()));
+        ContactMessage saved = repository.save(mapper.toEntity(request));
+        log.info("Contact message received messageId={}", saved.getId());
         events.publishEvent(ContactMessageReceived.from(saved));
     }
 
@@ -60,14 +62,14 @@ public class ContactService {
 
     @Transactional(readOnly = true)
     public Page<ContactMessageResponse> list(Pageable pageable) {
-        return repository.findAll(pageable).map(ContactMessageResponse::from);
+        return repository.findAll(pageable).map(mapper::toResponse);
     }
 
     @Transactional
     public ContactMessageResponse markAsRead(Long id) {
         ContactMessage message = find(id);
         message.markAsRead();
-        return ContactMessageResponse.from(message);
+        return mapper.toResponse(message);
     }
 
     @Transactional
@@ -78,9 +80,5 @@ public class ContactService {
     private ContactMessage find(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Message " + id + " not found"));
-    }
-
-    private static String trimToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,14 +28,14 @@ public class PostController {
 
     @GetMapping
     @Operation(summary = "List published posts, newest first (paginated: ?page=0&size=10)")
-    public Page<PostSummaryResponse> list(
+    public ResponseEntity<Page<PostSummaryResponse>> list(
             @PageableDefault(size = 10, sort = "publishedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return postService.listPublished(pageable);
+        return ResponseEntity.ok(postService.listPublished(pageable));
     }
 
     @GetMapping("/{slug}")
     @Operation(summary = "A published post with its full content")
-    public PostResponse get(@PathVariable String slug) {
-        return postService.getPublished(slug);
+    public ResponseEntity<PostResponse> get(@PathVariable String slug) {
+        return ResponseEntity.ok(postService.getPublished(slug));
     }
 }

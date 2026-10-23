@@ -62,3 +62,11 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+logging:
+  pattern:
+    # Every line carries the request id (RequestIdFilter); empty for lines outside a request
+    level: "%5p [%X{requestId:-}]"
+  level:
+    com.semih.siteapi: ${LOG_LEVEL:info}
+

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, kontrol, 'kontrol/**']
   pull_request:
 
 jobs:
@@ -20,7 +20,39 @@ jobs:
 
       # Unit tests + integration tests (Testcontainers starts PostgreSQL in Docker)
       - name: Build and test
-        run: mvn -B verify
+        run: |
+          set -o pipefail
+          mvn -B verify 2>&1 | tee build.log
+
+      # Totals as an annotation (integration tests skip silently without Docker, so "green" alone
+      # does not prove they ran), plus compile errors and failed tests as annotations.
+      - name: Test summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, re
+          import xml.etree.ElementTree as ET
+          total = skipped = failed = integration = 0
+          for path in glob.glob("target/surefire-reports/TEST-*.xml"):
+              suite = ET.parse(path).getroot()
+              tests = int(suite.get("tests"))
+              total += tests
+              skipped += int(suite.get("skipped"))
+              failed += int(suite.get("failures")) + int(suite.get("errors"))
+              if suite.get("name", "").endswith("IntegrationTest"):
+                  integration += tests - int(suite.get("skipped"))
+              for case in suite.iter("testcase"):
+                  for problem in list(case.iter("failure")) + list(case.iter("error")):
+                      message = (problem.get("message") or problem.get("type") or "").replace("\n", " ")[:300]
+                      print(f"::error title={case.get('classname').split('.')[-1]}.{case.get('name')}::{message}")
+          print(f"::notice title=Tests::{total} run, {integration} against PostgreSQL, {skipped} skipped, {failed} failed")
+          try:
+              log = open("build.log", encoding="utf-8", errors="replace").read()
+          except FileNotFoundError:
+              log = ""
+          for line in re.findall(r"\[ERROR\] (/\S+\.java:\[\d+,\d+\] .*)", log)[:15]:
+              print("::error title=Compile::" + line.split("/src/", 1)[-1][:300])
+          PY
 
   docker:
     name: Docker image

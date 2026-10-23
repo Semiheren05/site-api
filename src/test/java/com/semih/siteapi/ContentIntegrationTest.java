@@ -15,9 +15,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -220,15 +222,19 @@ class ContentIntegrationTest {
         return create("/api/admin/projects", json);
     }
 
+    /** Creates as admin and checks the 201 points at the new resource with a Location header. */
     private String create(String path, String json) throws Exception {
-        return mockMvc.perform(post(path)
+        MockHttpServletResponse response = mockMvc.perform(post(path)
                         .header(HttpHeaders.AUTHORIZATION, bearer(adminToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isCreated())
                 .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .getResponse();
+        String body = response.getContentAsString();
+        long id = ((Number) JsonPath.read(body, "$.id")).longValue();
+        assertThat(response.getHeader(HttpHeaders.LOCATION)).endsWith(path + "/" + id);
+        return body;
     }
 
     private String login(String email, String password) throws Exception {

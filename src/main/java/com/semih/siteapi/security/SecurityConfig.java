@@ -25,8 +25,9 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             JwtService jwtService,
-                                            ObjectMapper objectMapper) throws Exception {
-        var problemHandler = new ProblemDetailSecurityHandler(objectMapper);
+                                            ObjectMapper objectMapper,
+                                            Clock clock) throws Exception {
+        var problemHandler = new ProblemDetailSecurityHandler(objectMapper, clock);
         return http
                 // Stateless JWT API: no sessions, no cookies, so no CSRF token needed.
                 .csrf(AbstractHttpConfigurer::disable)

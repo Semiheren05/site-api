@@ -21,6 +21,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_URL: jdbc:postgresql://db:5432/siteapi
       DB_USERNAME: siteapi
       DB_PASSWORD: ${DB_PASSWORD:-siteapi}

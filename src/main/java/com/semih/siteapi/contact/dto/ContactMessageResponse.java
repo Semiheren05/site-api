@@ -1,9 +1,8 @@
 package com.semih.siteapi.contact.dto;
 
-import com.semih.siteapi.contact.ContactMessage;
-
 import java.time.Instant;
 
+/** A message in the admin inbox. Built by {@code ContactMessageMapper}. */
 public record ContactMessageResponse(
         Long id,
         String name,
@@ -12,15 +11,4 @@ public record ContactMessageResponse(
         String message,
         boolean read,
         Instant createdAt) {
-
-    public static ContactMessageResponse from(ContactMessage message) {
-        return new ContactMessageResponse(
-                message.getId(),
-                message.getName(),
-                message.getEmail(),
-                message.getSubject(),
-                message.getMessage(),
-                message.isRead(),
-                message.getCreatedAt());
-    }
 }

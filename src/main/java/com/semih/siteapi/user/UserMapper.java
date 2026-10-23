@@ -1,11 +1,12 @@
 package com.semih.siteapi.user;
 
-import java.time.Instant;
+import com.semih.siteapi.user.dto.UserResponse;
+import org.springframework.stereotype.Component;
 
-/** Public view of a user. Never exposes the password hash. */
-public record UserResponse(Long id, String email, String displayName, Role role, Instant createdAt) {
+@Component
+public class UserMapper {
 
-    public static UserResponse from(User user) {
+    public UserResponse toResponse(User user) {
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),

@@ -36,7 +36,7 @@ class PostServiceTest {
 
     @BeforeEach
     void setUp() {
-        postService = new PostService(postRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        postService = new PostService(postRepository, new PostMapper(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test

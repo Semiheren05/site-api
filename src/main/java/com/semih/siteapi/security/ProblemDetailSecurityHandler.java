@@ -1,6 +1,7 @@
 package com.semih.siteapi.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semih.siteapi.common.Problems;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Clock;
 
 /**
  * Security errors happen in the filter chain, before controllers and
@@ -22,9 +24,11 @@ import java.net.URI;
 public class ProblemDetailSecurityHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
-    public ProblemDetailSecurityHandler(ObjectMapper objectMapper) {
+    public ProblemDetailSecurityHandler(ObjectMapper objectMapper, Clock clock) {
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     @Override
@@ -45,8 +49,7 @@ public class ProblemDetailSecurityHandler implements AuthenticationEntryPoint, A
 
     private void write(HttpServletRequest request, HttpServletResponse response,
                        HttpStatus status, String title, String detail) throws IOException {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setTitle(title);
+        ProblemDetail problem = Problems.of(status, title, detail, clock.instant());
         problem.setInstance(URI.create(request.getRequestURI()));
 
         response.setStatus(status.value());

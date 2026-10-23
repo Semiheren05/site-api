@@ -1,10 +1,9 @@
 package com.semih.siteapi.project.dto;
 
-import com.semih.siteapi.project.Project;
-
 import java.time.Instant;
 import java.util.List;
 
+/** Built by {@code ProjectMapper}. */
 public record ProjectResponse(
         Long id,
         String slug,
@@ -19,21 +18,4 @@ public record ProjectResponse(
         boolean published,
         Instant createdAt,
         Instant updatedAt) {
-
-    public static ProjectResponse from(Project project) {
-        return new ProjectResponse(
-                project.getId(),
-                project.getSlug(),
-                project.getTitle(),
-                project.getSummary(),
-                project.getDescription(),
-                project.getTechnologies(),
-                project.getRepoUrl(),
-                project.getLiveUrl(),
-                project.isFeatured(),
-                project.getDisplayOrder(),
-                project.isPublished(),
-                project.getCreatedAt(),
-                project.getUpdatedAt());
-    }
 }

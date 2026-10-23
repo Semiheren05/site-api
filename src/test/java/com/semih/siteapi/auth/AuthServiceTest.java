@@ -8,10 +8,9 @@ import com.semih.siteapi.common.exception.InvalidCredentialsException;
 import com.semih.siteapi.security.JwtService;
 import com.semih.siteapi.user.Role;
 import com.semih.siteapi.user.User;
-import com.semih.siteapi.user.UserRepository;
+import com.semih.siteapi.user.UserService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -23,6 +22,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class AuthServiceTest {
 
     @Mock
-    private UserRepository userRepository;
+    private UserService userService;
     @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
@@ -43,40 +43,35 @@ class AuthServiceTest {
 
     @Test
     void registerRejectsAnEmailThatIsAlreadyTaken() {
-        when(userRepository.existsByEmail("semih@example.com")).thenReturn(true);
+        when(userService.isEmailTaken("semih@example.com")).thenReturn(true);
 
         assertThatThrownBy(() -> authService.register(
                 new RegisterRequest(" Semih@Example.com ", "password123", "Semih")))
                 .isInstanceOf(EmailAlreadyUsedException.class);
 
-        verify(userRepository, never()).save(any());
+        verify(userService, never()).createAccount(anyString(), anyString(), anyString(), any());
     }
 
     @Test
     void registerStoresNormalizedEmailAndHashedPassword() {
-        when(userRepository.existsByEmail("semih@example.com")).thenReturn(false);
+        when(userService.isEmailTaken("semih@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("hashed");
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userService.createAccount("semih@example.com", "hashed", "Semih", Role.USER))
+                .thenReturn(new User("semih@example.com", "hashed", "Semih", Role.USER));
         when(jwtService.generateToken("semih@example.com", Role.USER)).thenReturn("token");
         when(jwtService.getExpiration()).thenReturn(Duration.ofHours(1));
 
         AuthResponse response = authService.register(
                 new RegisterRequest(" Semih@Example.com ", "password123", " Semih "));
 
-        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getEmail()).isEqualTo("semih@example.com");
-        assertThat(saved.getValue().getPasswordHash()).isEqualTo("hashed");
-        assertThat(saved.getValue().getDisplayName()).isEqualTo("Semih");
-        assertThat(saved.getValue().getRole()).isEqualTo(Role.USER);
-
+        verify(userService).createAccount("semih@example.com", "hashed", "Semih", Role.USER);
         assertThat(response).isEqualTo(new AuthResponse("token", "Bearer", 3600));
     }
 
     @Test
     void loginFailsWithWrongPassword() {
         User user = new User("semih@example.com", "hashed", "Semih", Role.USER);
-        when(userRepository.findByEmail("semih@example.com")).thenReturn(Optional.of(user));
+        when(userService.findAccount("semih@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong-password", "hashed")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("semih@example.com", "wrong-password")))
@@ -87,7 +82,7 @@ class AuthServiceTest {
 
     @Test
     void loginFailsWithUnknownEmail() {
-        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+        when(userService.findAccount("nobody@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("nobody@example.com", "password123")))
                 .isInstanceOf(InvalidCredentialsException.class);

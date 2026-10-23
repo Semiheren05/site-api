@@ -39,7 +39,7 @@ class ContactServiceTest {
     @BeforeEach
     void setUp() {
         ContactProperties properties = new ContactProperties(null, null, 2, Duration.ofMinutes(10));
-        contactService = new ContactService(repository, events, properties, CLOCK);
+        contactService = new ContactService(repository, new ContactMessageMapper(), events, properties, CLOCK);
     }
 
     @Test

@@ -1,0 +1,6 @@
+# Active in Docker (SPRING_PROFILES_ACTIVE=prod): one JSON object per log line, ready for
+# a log collector (Loki, ELK). The request id from the MDC is included automatically.
+logging:
+  structured:
+    format:
+      console: ecs
